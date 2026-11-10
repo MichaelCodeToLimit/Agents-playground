@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hide &amp; Seek Arena</title>
+<link rel="stylesheet" href="style.css">
+<script type="importmap">{"imports":{"three":"./vendor/three.module.js"}}</script>
+<script src="vendor/peerjs.min.js"></script>
+</head><body>
+<canvas id="c"></canvas>
+
+<div id="menu" class="panel center">
+  <p class="kicker">Multiplayer</p><h1>Hide and Seek</h1>
+  <p class="sub">Build forts. Use ramps. Find them. Peer-to-peer multiplayer, humans only.</p>
+  <input id="name" maxlength="14" placeholder="Your name" autocomplete="off">
+  <button id="hostBtn" class="big">Host a game</button>
+  <div class="or">or join a friend</div>
+  <div class="row"><input id="code" maxlength="8" placeholder="Room code" autocomplete="off"><button id="joinBtn">Join</button></div>
+  <p id="menuErr" class="err"></p>
+</div>
+
+<div id="lobby" class="panel center hidden">
+  <h2>Room <span id="roomCode" class="code"></span></h2>
+  <p class="sub" id="lobbyHint">Share the code with friends. Pick a team.</p>
+  <div class="teams">
+    <div class="team A"><h3>Team 1 <small>hides first</small></h3><ul id="listA"></ul><button data-team="A">Join Team 1</button></div>
+    <div class="team B"><h3>Team 2 <small>seeks first</small></h3><ul id="listB"></ul><button data-team="B">Join Team 2</button></div>
+  </div>
+  <p class="sub" id="listS"></p>
+  <div id="hostOnly" class="hidden">
+    <label class="field">Arena
+      <select id="modeSel"><option value="full">Full arena: divider wall, many objects</option><option value="small">Small arena: one object per round</option></select>
+    </label>
+    <details id="aiBox"><summary>Add an AI player (bring your own Anthropic API key)</summary>
+      <input id="aiKey" type="password" placeholder="sk-ant-..." autocomplete="off" spellcheck="false">
+      <div class="row"><select id="aiModel"></select><select id="aiTeam"><option value="A">Team 1 (hides first)</option><option value="B" selected>Team 2 (seeks first)</option></select></div>
+      <label class="check"><input type="checkbox" id="aiRemember"> Remember key in this browser</label>
+      <div class="row"><button id="aiAdd">Add AI player</button><button id="aiClear" class="ghost">Remove AI players</button></div>
+      <p id="aiErr" class="err"></p>
+      <p class="help">The key stays in this browser and is used only to call api.anthropic.com directly. It is never sent to other players. Each AI makes about one request per second while a round is live, billed to your account.</p>
+    </details>
+  </div>
+  <button id="startBtn" class="big hidden">Start match</button>
+  <p id="lobbyErr" class="err"></p>
+  <p class="help">WASD move · Mouse look · Space jump · <b>E / Left-click</b> grab &amp; release · <b>F / Right-click</b> lock &amp; unlock · <b>V</b> switch camera</p>
+</div>
+
+<div id="hud" class="hidden">
+  <div id="top"><div id="phase"></div><div id="timer"></div><div id="scores"></div></div>
+  <div id="role"></div><div id="aiPanel" class="hidden"></div><div id="cross">+</div><div id="toast"></div><div id="seenFlash"></div>
+  <div id="blind" class="hidden"></div>
+  <div id="hint">E grab · F lock/unlock · Space jump · V camera</div>
+  <div id="click" class="hidden">Click to capture the mouse</div>
+</div>
+
+<div id="end" class="panel center hidden">
+  <h2 id="endTitle"></h2><p id="endScores"></p>
+  <button id="againBtn" class="big hidden">Back to lobby</button><p id="endWait" class="sub hidden">Waiting for host…</p>
+</div>
+<script type="module" src="js/main.js"></script>
+</body></html>

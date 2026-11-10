@@ -1,0 +1,39 @@
+# Hide & Seek Arena
+
+Human-only, peer-to-peer 3D multiplayer version of OpenAI's "Multi-Agent Hide and Seek".
+Hiders get a head start to build a fort from boxes, walls and ramps (and lock them in place);
+seekers then try to find them, using ramps and box-surfing to get over walls.
+
+## Play
+```bash
+npm install
+npm start          # serves http://localhost:8080
+```
+Host clicks **Host a game** and shares the 4-letter code; friends click **Join**.
+Any static host (GitHub Pages, Netlify...) works too: serve the `public/` folder. Gameplay is direct
+browser-to-browser (WebRTC); the free public PeerJS broker is used only for the initial handshake.
+Strict NATs/corporate networks may fail to connect (no TURN relay).
+
+Controls: WASD move · mouse look · Space jump · E / left-click grab & release · F / right-click lock & unlock.
+
+## Arena modes
+The host picks the arena in the lobby: **Full arena** (divider wall with a doorway, many boxes, walls and ramps) or
+**Small arena** (a tiny room with exactly one movable object, a different one each round: box, ramp, wall, box).
+
+## AI players (bring your own Anthropic API key)
+Host-only, optional. In the lobby open "Add an AI player", paste your key, pick a model and team, click **Add AI player**.
+- The key stays in the host's browser (optionally remembered in localStorage) and is used only to call
+  `api.anthropic.com` directly. It is never sent to other players. Billed to your account, roughly one request per second per AI while a round is live.
+- The AI only gets what a player on its team could see (line-of-sight rules); its short "thought" for each plan shows in a host-only panel.
+- Models: Haiku 5.5 (default, cheap/fast), Sonnet 5.5, Opus 5.5. Requests use low effort so the bots stay responsive.
+- The bot stops itself after an invalid key or repeated API errors, and says so in the panel.
+
+## Rules
+Teams Orange vs Blue, 4 rounds, sides swap each round. 15s prep (seekers frozen & blind), then 90s seek.
+While any hider is visible to a seeker (view cone + line of sight) seekers score; otherwise hiders score.
+Only the team that locked an object can unlock it. Host's browser runs the simulation: if the host leaves, the match ends.
+Keep the host tab in the foreground.
+
+## Dev
+`npm test` (rules, physics, AI module with a faked API; Node). The AI path is tested against a mocked API, not a live key. End-to-end: `npm run signal` then
+`NODE_PATH=$(npm root -g) node tests/e2e/two-players.mjs` or `.../ai-small.mjs` (needs Playwright).
