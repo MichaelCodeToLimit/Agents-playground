@@ -32,3 +32,7 @@ select{padding:11px 12px;border-radius:10px;border:1px solid #c5c3de;background:
 button.ghost{background:#e4e3f1;color:#3d3a7c}.row button{white-space:nowrap}
 #aiPanel{position:fixed;right:14px;top:14px;max-width:min(340px,40vw);font-size:13px;line-height:1.35;background:rgba(255,255,255,.85);border-radius:12px;padding:10px 12px;text-shadow:none}
 #aiPanel b{display:block}#aiPanel div+div{margin-top:6px}
+body.menu-on::before{content:"";position:fixed;inset:0;z-index:0;background:radial-gradient(circle at 25% 20%,#efdbe8 0,transparent 55%),radial-gradient(circle at 80% 80%,#cfe9e7 0,transparent 55%),linear-gradient(135deg,#e6dcec,#dde6ef)}
+body.menu-on .panel{box-shadow:none;background:transparent}body.menu-on h1{color:#4b3f8f}
+#caption{position:fixed;bottom:46px;left:50%;transform:translateX(-50%);font-size:26px;font-weight:600;color:#2a2766;letter-spacing:.01em;pointer-events:none;white-space:nowrap}
+#toast{bottom:24%}#click{bottom:96px}

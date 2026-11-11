@@ -1,10 +1,11 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Hide &amp; Seek Arena</title>
+<link rel="icon" href="data:,">
 <link rel="stylesheet" href="style.css">
 <script type="importmap">{"imports":{"three":"./vendor/three.module.js"}}</script>
 <script src="vendor/peerjs.min.js"></script>
-</head><body>
+</head><body class="menu-on">
 <canvas id="c"></canvas>
 
 <div id="menu" class="panel center">
@@ -40,14 +41,14 @@
   </div>
   <button id="startBtn" class="big hidden">Start match</button>
   <p id="lobbyErr" class="err"></p>
-  <p class="help">WASD move · Mouse look · Space jump · <b>E / Left-click</b> grab &amp; release · <b>F / Right-click</b> lock &amp; unlock · <b>V</b> switch camera</p>
+  <p class="help">WASD move · Mouse look · Space jump · <b>E / Left-click</b> grab &amp; release · <b>F / Right-click</b> lock &amp; unlock · <b>V</b> cycle camera (chase / overhead / first-person)</p>
 </div>
 
 <div id="hud" class="hidden">
   <div id="top"><div id="phase"></div><div id="timer"></div><div id="scores"></div></div>
-  <div id="role"></div><div id="aiPanel" class="hidden"></div><div id="cross">+</div><div id="toast"></div><div id="seenFlash"></div>
+  <div id="role"></div><div id="aiPanel" class="hidden"></div><div id="cross">+</div><div id="toast"></div><div id="caption"></div><div id="seenFlash"></div>
   <div id="blind" class="hidden"></div>
-  <div id="hint">E grab · F lock/unlock · Space jump · V camera</div>
+  <div id="hint">E grab · F lock/unlock · Space jump · V camera view</div>
   <div id="click" class="hidden">Click to capture the mouse</div>
 </div>
 

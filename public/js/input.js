@@ -1,11 +1,11 @@
 // Keyboard + pointer-lock mouse look. Exposes current input state and one-shot actions.
 export class Input {
   constructor(canvas, onAction) {
-    this.yaw = 0; this.pitch = 0; this.third = true; this.keys = new Set(); this.canvas = canvas; this.onAction = onAction; this.enabled = false;
+    this.yaw = 0; this.pitch = 0; this.cam = 'chase'; this.keys = new Set(); this.canvas = canvas; this.onAction = onAction; this.enabled = false;
     const k = e => e.code;
     addEventListener('keydown', e => {
       if (!this.enabled || e.target.tagName === 'INPUT') return;
-      if (!e.repeat) { if (e.code === 'KeyE') onAction('grab'); if (e.code === 'KeyF') onAction('lock'); if (e.code === 'KeyV') this.third = !this.third; }
+      if (!e.repeat) { if (e.code === 'KeyE') onAction('grab'); if (e.code === 'KeyF') onAction('lock'); if (e.code === 'KeyV') this.cam = { chase: 'top', top: 'first', first: 'chase' }[this.cam]; }
       this.keys.add(k(e)); if (e.code === 'Space') e.preventDefault();
     });
     addEventListener('keyup', e => this.keys.delete(k(e)));

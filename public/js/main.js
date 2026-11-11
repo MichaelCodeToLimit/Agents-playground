@@ -6,7 +6,7 @@ import { CFG } from './rules.js';
 import { AiBot, MODELS } from './ai.js';
 
 const $ = id => document.getElementById(id);
-const show = (id, on = true) => $(id).classList.toggle('hidden', !on);
+const show = (id, on = true) => { $(id).classList.toggle('hidden', !on); if (id === 'menu') document.body.classList.toggle('menu-on', on); };
 const TEAMN = { A: 'Team 1', B: 'Team 2', S: 'Spectator' };
 const view = new View($('c'));
 const bots = new Map(), thoughts = new Map(); let aiN = 0;
@@ -144,7 +144,7 @@ function ui(s) {
   show('blind', s.phase === 'prep' && role === 'seeker');
   $('blind').textContent = `Hiders are building a shelter… you're released in ${fmt(s.t)}s`;
   $('seenFlash').style.opacity = role === 'hider' && s.phase === 'seek' && mine && mine.sn ? 1 : 0;
-  show('cross', !input.third); show('click', input.enabled && document.pointerLockElement !== $('c'));
+  show('cross', input.cam === 'first'); $('caption').textContent = { prep: 'Shelter Construction', seek: 'Hide and Seek', between: 'Swapping sides' }[s.phase] || ''; show('click', input.enabled && document.pointerLockElement !== $('c'));
   if (s.phase !== lastPhase) {
     if (s.phase === 'prep') toast(role === 'hider' ? 'Build a shelter! Grab (E) and lock (F) objects' : 'Hold tight…', 2500);
     if (s.phase === 'seek') toast(role === 'seeker' ? 'GO! Find them!' : 'Stay hidden!', 2000);
