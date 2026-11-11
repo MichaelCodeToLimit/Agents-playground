@@ -51,5 +51,7 @@ Only the team that locked an object can unlock it. Host's browser runs the simul
 Keep the host tab in the foreground.
 
 ## Dev
+After editing anything in `public/js` or `public/style.css`, run `npm run stamp` (a unit test fails if you forget). It content-hashes the file URLs in `index.html`, so a deploy never serves a mix of old and new files from Render's CDN cache.
+
 `npm test` (rules, physics, built-in bot, AI module with a faked API; Node). The AI path is tested against a mocked API, not a live key. End-to-end: `npm run signal` then
 `NODE_PATH=$(npm root -g) node tests/e2e/two-players.mjs` or `.../ai-small.mjs`, `.../features.mjs` (random arena, bots, locks, effects); `npm start` then `.../solo.mjs` for single player (needs Playwright).
