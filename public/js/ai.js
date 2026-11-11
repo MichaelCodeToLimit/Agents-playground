@@ -107,13 +107,13 @@ export class AiBot {
   }
   drive(p, dt) {
     const c = this.cmd, i = p.input, b = p.body.position;
-    if (c.goto && Math.hypot(c.goto.x - b.x, c.goto.z - b.z) < 0.7) c.goto = null;
+    if (c.goto && Math.hypot(c.goto.x - b.x, c.goto.z - b.z) < (this.arrive ?? 0.7)) c.goto = null;
     const aim = c.goto || c.face; let diff = 0;
     if (aim) {
       diff = wrap(Math.atan2(-(aim.x - b.x), -(aim.z - b.z)) - i.yaw);
       i.yaw += Math.max(-5 * dt, Math.min(5 * dt, diff));
     }
-    i.mx = 0; i.mz = c.goto && Math.abs(diff) < 0.8 ? 1 : 0;
+    i.mx = 0; i.mz = c.goto && Math.abs(diff) < 0.8 ? (this.speed ?? 1) : 0;
     let pitch = 0;
     if (!c.goto && c.face) { // aim at the nearest object so grab/lock raycasts hit it
       const o = this.sim.objs.reduce((best, q) => { const d = Math.hypot(q.body.position.x - c.face.x, q.body.position.z - c.face.z); return !best || d < best.d ? { q, d } : best; }, null);

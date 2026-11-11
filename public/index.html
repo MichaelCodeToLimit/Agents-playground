@@ -15,6 +15,9 @@
   <button id="hostBtn" class="big">Host a game</button>
   <div class="or">or join a friend</div>
   <div class="row"><input id="code" maxlength="8" placeholder="Room code" autocomplete="off"><button id="joinBtn">Join</button></div>
+  <div class="or">or play alone against a bot</div>
+  <div class="row"><button id="soloHide" class="grow">Solo: I'll hide</button><button id="soloSeek" class="grow red">Solo: I'll seek</button></div>
+  <p class="help">Small arena, one object. No key or internet game server needed.</p>
   <p id="menuErr" class="err"></p>
 </div>
 
@@ -46,7 +49,7 @@
 
 <div id="hud" class="hidden">
   <div id="top"><div id="phase"></div><div id="timer"></div><div id="scores"></div></div>
-  <div id="role"></div><div id="aiPanel" class="hidden"></div><div id="cross">+</div><div id="toast"></div><div id="caption"></div><div id="seenFlash"></div>
+  <div id="role"></div><div id="aiPanel" class="hidden"></div><button id="exitBtn" class="ghost hidden">Exit</button><div id="cross">+</div><div id="toast"></div><div id="caption"></div><div id="seenFlash"></div>
   <div id="blind" class="hidden"></div>
   <div id="hint">E grab · F lock/unlock · Space jump · V camera view</div>
   <div id="click" class="hidden">Click to capture the mouse</div>

@@ -181,8 +181,13 @@ export class Sim {
     return res.hasHit ? res.body : null;
   }
   blocked(seeker, hider) {
-    const from = this.eye(seeker), to = hider.body.position, res = new C.RaycastResult();
-    this.world.raycastClosest(from, to, { collisionFilterMask: G_OBS, skipBackfaces: true }, res);
+    const from = this.eye(seeker), to = hider.body.position;
+    return this.losBlocked(from.x, from.y, from.z, to.x, to.y, to.z);
+  }
+  // true if a wall or object is between the two points
+  losBlocked(x, y, z, tx, ty, tz) {
+    const res = new C.RaycastResult();
+    this.world.raycastClosest(new C.Vec3(x, y, z), new C.Vec3(tx, ty, tz), { collisionFilterMask: G_OBS, skipBackfaces: true }, res);
     return res.hasHit;
   }
   anyHiderSeen() {

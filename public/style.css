@@ -36,3 +36,5 @@ body.menu-on::before{content:"";position:fixed;inset:0;z-index:0;background:radi
 body.menu-on .panel{box-shadow:none;background:transparent}body.menu-on h1{color:#4b3f8f}
 #caption{position:fixed;bottom:46px;left:50%;transform:translateX(-50%);font-size:26px;font-weight:600;color:#2a2766;letter-spacing:.01em;pointer-events:none;white-space:nowrap}
 #toast{bottom:24%}#click{bottom:96px}
+.row .grow{flex:1}button.red{background:#f5352a}
+#exitBtn{position:fixed;left:14px;bottom:12px;padding:8px 14px;font-size:14px}

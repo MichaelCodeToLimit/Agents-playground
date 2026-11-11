@@ -16,6 +16,12 @@ Strict NATs/corporate networks may fail to connect (no TURN relay).
 
 Controls: WASD move · mouse look · Space jump · E / left-click grab & release · F / right-click lock & unlock.
 
+## Single player
+On the menu, click **Solo: I'll hide** or **Solo: I'll seek** to play alone against a built-in bot in the small arena (one object).
+No network, server or API key is used. The bot follows the same rules as you (same speed cap, view cone and line of sight; it is a little slower):
+as hider it locks the object and keeps it between itself and the seeker; as seeker it circles the object, chases anything it sees and checks the last place it saw you.
+Sides swap each round over 4 rounds; **Play again** restarts. **Exit** returns to the menu.
+
 ## Arena modes
 The host picks the arena in the lobby: **Full arena** (divider wall with a doorway, many boxes, walls and ramps) or
 **Small arena** (a tiny room with exactly one movable object, a different one each round: box, ramp, wall, box).
@@ -35,5 +41,5 @@ Only the team that locked an object can unlock it. Host's browser runs the simul
 Keep the host tab in the foreground.
 
 ## Dev
-`npm test` (rules, physics, AI module with a faked API; Node). The AI path is tested against a mocked API, not a live key. End-to-end: `npm run signal` then
-`NODE_PATH=$(npm root -g) node tests/e2e/two-players.mjs` or `.../ai-small.mjs` (needs Playwright).
+`npm test` (rules, physics, built-in bot, AI module with a faked API; Node). The AI path is tested against a mocked API, not a live key. End-to-end: `npm run signal` then
+`NODE_PATH=$(npm root -g) node tests/e2e/two-players.mjs` or `.../ai-small.mjs`; `npm start` then `.../solo.mjs` for single player (needs Playwright).

@@ -4,13 +4,14 @@ import { Input } from './input.js';
 import { hostRoom, joinRoom } from './net.js';
 import { CFG } from './rules.js';
 import { AiBot, MODELS } from './ai.js';
+import { CpuBot } from './cpu.js';
 
 const $ = id => document.getElementById(id);
 const show = (id, on = true) => { $(id).classList.toggle('hidden', !on); if (id === 'menu') document.body.classList.toggle('menu-on', on); };
 const TEAMN = { A: 'Team 1', B: 'Team 2', S: 'Spectator' };
 const view = new View($('c'));
 const bots = new Map(), thoughts = new Map(); let aiN = 0;
-let mode = null, sim = null, net = null, me = null, snap = null, layoutSeen = false, lastPhase = null, input;
+let solo = false, mode = null, sim = null, net = null, me = null, snap = null, layoutSeen = false, lastPhase = null, input;
 const send = m => mode === 'client' ? net.send(m) : null;
 
 function act(a) { if (mode === 'host') sim.action('host', a); else send({ t: 'act', a }); }
@@ -46,6 +47,16 @@ function startMatch() {
   try { sim.start(); $('lobbyErr').textContent = ''; } catch (e) { $('lobbyErr').textContent = 'Both teams need at least one player.'; }
 }
 
+// ---------------- single player: you vs the built-in bot, small arena, no network ----------------
+function startSolo(role) {
+  sim = new Sim(Math.floor(Math.random() * 1e6), 'small'); mode = 'host'; solo = true; me = 'host';
+  sim.addPlayer('host', $('name').value.trim() || 'You', role === 'hider' ? 'A' : 'B'); // team A hides first
+  sim.addPlayer('cpu-1', '🤖 Bot', role === 'hider' ? 'B' : 'A');
+  bots.set('cpu-1', new CpuBot(sim, 'cpu-1'));
+  net = { send() {}, broadcast() {}, close() {} };
+  show('menu', false); show('exitBtn'); sim.start(); startLoops();
+}
+
 // ---------------- AI players (host only, bring your own key) ----------------
 function initHostUi() {
   $('aiModel').innerHTML = MODELS.map(([id, label]) => `<option value="${id}">${label}</option>`).join('');
@@ -66,9 +77,10 @@ function addBot() {
     onError: e => { thoughts.set(id, { name, text: '⚠ ' + (e.status === 401 ? 'Invalid API key' : e.message) }); toast(name + ': ' + (e.status === 401 ? 'invalid API key' : 'API error'), 3500); } }));
 }
 function aiPanel(s, inGame) {
-  show('aiPanel', mode === 'host' && bots.size > 0 && inGame && s.phase !== 'over');
-  if (!bots.size) return;
-  $('aiPanel').innerHTML = [...bots.keys()].map(id => { const t = thoughts.get(id), pl = s.players.find(p => p.id === id), role = pl ? (pl.tm === s.hiderTeam ? 'hider' : 'seeker') : '';
+  const ids = [...bots].filter(([, b]) => !b.cpu).map(([id]) => id); // built-in bots have no thoughts to show
+  show('aiPanel', mode === 'host' && ids.length > 0 && inGame && s.phase !== 'over');
+  if (!ids.length) return;
+  $('aiPanel').innerHTML = ids.map(id => { const t = thoughts.get(id), pl = s.players.find(p => p.id === id), role = pl ? (pl.tm === s.hiderTeam ? 'hider' : 'seeker') : '';
     return `<div><b>${t ? t.name : id} ${role ? '(' + role + ')' : ''}</b>${t ? t.text.replace(/</g, '&lt;') : 'thinking…'}</div>`; }).join('');
 }
 
@@ -155,15 +167,15 @@ function ui(s) {
     const d = s.scores.A - s.scores.B; document.exitPointerLock?.();
     $('endTitle').textContent = Math.abs(d) < 1 ? 'Draw!' : (d > 0 ? 'Team 1' : 'Team 2') + ' wins!';
     $('endScores').innerHTML = `Team 1 <b>${Math.round(s.scores.A)}</b> — Team 2 <b>${Math.round(s.scores.B)}</b>`;
-    show('againBtn', mode === 'host'); show('endWait', mode !== 'host');
+    $('againBtn').textContent = solo ? 'Play again' : 'Back to lobby'; show('againBtn', mode === 'host'); show('endWait', mode !== 'host');
   }
 }
 
 // ---------------- wiring ----------------
-$('hostBtn').onclick = startHost; $('joinBtn').onclick = startJoin;
+$('hostBtn').onclick = startHost; $('soloHide').onclick = () => startSolo('hider'); $('soloSeek').onclick = () => startSolo('seeker'); $('exitBtn').onclick = () => location.reload(); $('joinBtn').onclick = startJoin;
 $('code').addEventListener('keydown', e => e.key === 'Enter' && startJoin());
 $('startBtn').onclick = startMatch;
-$('againBtn').onclick = () => { sim.endMatch(); const l = sim.layout(); view.setLayout(l); net.broadcast({ t: 'layout', l }); lastPhase = null; };
+$('againBtn').onclick = () => { sim.endMatch(); if (solo) sim.start(); const l = sim.layout(); view.setLayout(l); net.broadcast({ t: 'layout', l }); lastPhase = null; };
 document.querySelectorAll('[data-team]').forEach(b => b.onclick = () => { const t = b.dataset.team; if (mode === 'host') sim.setTeam('host', t); else send({ t: 'team', team: t }); });
 $('name').value = localStorage.getItem('hns-name') || ''; $('name').oninput = () => localStorage.setItem('hns-name', $('name').value);
 const q = new URLSearchParams(location.search); if (q.get('join')) $('code').value = q.get('join');
