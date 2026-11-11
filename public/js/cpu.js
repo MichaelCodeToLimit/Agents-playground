@@ -105,7 +105,11 @@ export class CpuBot extends AiBot {
     const e = this.sim.eye(p), me = { x: e.x, y: e.y, z: e.z, yaw: p.input.yaw, pitch: p.input.pitch };
     this.speed = 0.92; this.cmd.face = null;
     if (canSee(me, hider.body.position, this.sim.blocked(p, hider))) {
-      this.lastSeen = { x: hider.body.position.x, z: hider.body.position.z, t: this.t }; this.go(this.lastSeen); return;
+      const hx = hider.body.position.x, hz = hider.body.position.z, b = p.body.position, d = Math.hypot(hx - b.x, hz - b.z);
+      this.lastSeen = { x: hx, z: hz, t: this.t };
+      // scoring only needs line of sight: close in to about 2 m, then stand and keep looking (never shove the player)
+      if (d > 2.4) this.go({ x: hx - (hx - b.x) / d * 1.9, z: hz - (hz - b.z) / d * 1.9 }); else { this.go(null); this.cmd.face = { x: hx, z: hz }; }
+      return;
     }
     if (this.lastSeen && this.t - this.lastSeen.t < 6) { // go and look where we last saw them
       const b = p.body.position; if (Math.hypot(this.lastSeen.x - b.x, this.lastSeen.z - b.z) < 1.2) this.lastSeen = null; else this.go(this.lastSeen);

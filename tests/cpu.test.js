@@ -75,3 +75,13 @@ for (const seed of [1, 2, 3, 4]) {
     run(s, bot, 85); assert.ok(s.match.roundScore.seek > 0.5, `seek score ${s.match.roundScore.seek.toFixed(1)}`);
   });
 }
+
+test('seeker bot closes in on a visible player but stops short and does not shove or overlap them', () => {
+  const { s, bot } = solo(9, 'B'); const me = s.players.get('me'), cpu = s.players.get('cpu');
+  run(s, bot, 15.2); me.body.position.set(0, 0.6, -5); me.body.velocity.set(0, 0, 0);
+  let minD = Infinity, pushed = 0, last = { x: 0, z: -5 };
+  for (let i = 0; i < 30 * 60; i++) { bot.update(1 / 60); s.step(1 / 60); const d = Math.hypot(cpu.body.position.x - me.body.position.x, cpu.body.position.z - me.body.position.z); if (i > 8 * 60) minD = Math.min(minD, d); }
+  pushed = Math.hypot(me.body.position.x - last.x, me.body.position.z - last.z);
+  assert.ok(minD > 1.3, `bot got within ${minD.toFixed(2)}m`); assert.ok(pushed < 0.6, `player was pushed ${pushed.toFixed(2)}m`);
+  assert.ok(s.match.roundScore.seek > 3, 'should still be scoring by sight');
+});

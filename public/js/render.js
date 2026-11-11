@@ -1,6 +1,7 @@
 // Visual style modelled on OpenAI's "Multi-Agent Hide and Seek" video:
 // white tiled floor, grey cube-rubble border, gold boxes/ramps, blue hiders, red seekers, blue sky with low-poly clouds.
 import * as THREE from 'three';
+import { chaseRig } from './camera.js';
 const BLUE = 0x27a8ec, RED = 0xf5352a, GOLD = 0xf7b413, WALL = 0xe0e1e5, LOCK_BLUE = 0xa6d8f7, LOCK_RED = 0xf8aaa2;
 const damp = (dt, k) => 1 - Math.exp(-dt * k);
 const hash = n => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
@@ -230,10 +231,9 @@ export class View {
     if (mine && look.cam === 'top') { // overhead view like the video's "Shelter Construction" shot
       const P = mine.g.position, c = v => Math.max(-this.A - 2, Math.min(this.A + 2, v));
       this.cam.position.set(c(P.x), P.y + this.A * 0.7 + 4, c(P.z) + this.A * 0.42 + 2.5); this.cam.lookAt(c(P.x) * 0.9, 0, c(P.z) * 0.9);
-    } else if (mine && look.cam === 'chase') { // elevated chase camera
-      const P = mine.g.position, fx = -Math.sin(look.yaw), fz = -Math.cos(look.yaw), c = v => Math.max(-this.A + 0.6, Math.min(this.A - 0.6, v));
-      this.cam.position.set(c(P.x - fx * 6), P.y + 4.6, c(P.z - fz * 6));
-      this.cam.lookAt(P.x + fx * 2.5, P.y + 0.4 + look.pitch * 5, P.z + fz * 2.5);
+    } else if (mine && look.cam === 'chase') { // elevated chase camera: pulls in and rises near walls instead of squashing onto the player
+      const P = mine.g.position, r = chaseRig(P, look.yaw, this.A);
+      this.cam.position.set(r.pos.x, r.pos.y, r.pos.z); this.cam.lookAt(r.look.x, P.y + 0.4 + look.pitch * 5 - r.squeeze * 0.5, r.look.z);
     } else if (mine) {
       this.cam.position.set(mine.g.position.x, mine.g.position.y + 0.4, mine.g.position.z);
       this.cam.rotation.set(look.pitch, look.yaw, 0);
