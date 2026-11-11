@@ -22,9 +22,19 @@ No network, server or API key is used. The bot follows the same rules as you (sa
 as hider it locks the object and keeps it between itself and the seeker; as seeker it circles the object, chases anything it sees and checks the last place it saw you.
 Sides swap each round over 4 rounds; **Play again** restarts. **Exit** returns to the menu.
 
+## Locks, grabbing and effects
+- **E / left-click** grabs what you are aiming at: a glowing beam links your hands to it, your arms come up, and it slows you down in proportion to its weight.
+  **F / right-click** locks it where it is (a padlock appears in your team's colour); only the team that locked it can unlock it.
+  Aim at an object and a hint tells you what you can do with it.
+- Objects: boxes, long planks, walls and ramps. They fall asleep when still so stacks stay put.
+- Characters lean into runs, tuck on jumps, squash on landing and carry things with both arms. Landings shake the camera, running widens the view, and dust puffs fly when things land.
+- Sound is synthesized in the browser (footsteps, jumps, landings, thuds, lock/unlock clicks, grab, a "you've been seen" alert, round chimes, a light breeze), panned and attenuated by distance. **M** mutes.
+
 ## Arena modes
 The host picks the arena in the lobby: **Full arena** (divider wall with a doorway, many boxes, walls and ramps) or
-**Small arena** (a tiny room with exactly one movable object, a different one each round: box, ramp, wall, box).
+**Small arena** (a tiny room with exactly one movable object, a different one each round: box, ramp, wall, box), or
+**Random arena** (like the video's later stages: 12-21 m wide, a divider with a doorway, extra rooms and loose walls, and a random pile of boxes, planks, walls and ramps, new every round; the two sides are always connected).
+For uneven teams, the host can add free built-in bots to either team in the lobby.
 
 ## AI players (bring your own Anthropic API key)
 Host-only, optional. In the lobby open "Add an AI player", paste your key, pick a model and team, click **Add AI player**.
@@ -42,4 +52,4 @@ Keep the host tab in the foreground.
 
 ## Dev
 `npm test` (rules, physics, built-in bot, AI module with a faked API; Node). The AI path is tested against a mocked API, not a live key. End-to-end: `npm run signal` then
-`NODE_PATH=$(npm root -g) node tests/e2e/two-players.mjs` or `.../ai-small.mjs`; `npm start` then `.../solo.mjs` for single player (needs Playwright).
+`NODE_PATH=$(npm root -g) node tests/e2e/two-players.mjs` or `.../ai-small.mjs`, `.../features.mjs` (random arena, bots, locks, effects); `npm start` then `.../solo.mjs` for single player (needs Playwright).

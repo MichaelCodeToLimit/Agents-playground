@@ -5,12 +5,15 @@ import { hostRoom, joinRoom } from './net.js';
 import { CFG } from './rules.js';
 import { AiBot, MODELS } from './ai.js';
 import { CpuBot } from './cpu.js';
+import { Sfx } from './audio.js';
 
 const $ = id => document.getElementById(id);
 const show = (id, on = true) => { $(id).classList.toggle('hidden', !on); if (id === 'menu') document.body.classList.toggle('menu-on', on); };
 const TEAMN = { A: 'Team 1', B: 'Team 2', S: 'Spectator' };
-const view = new View($('c'));
-const bots = new Map(), thoughts = new Map(); let aiN = 0;
+const view = new View($('c')), sfx = new Sfx();
+for (const ev of ['pointerdown', 'keydown']) addEventListener(ev, () => sfx.resume(), { capture: true }); // browsers unlock audio on a gesture
+addEventListener('keydown', e => { if (e.code === 'KeyM' && e.target.tagName !== 'INPUT') { toast(sfx.toggleMute() ? 'Sound off (M)' : 'Sound on (M)', 1200); } });
+const bots = new Map(), thoughts = new Map(), evCount = {}; let aiN = 0;
 let solo = false, mode = null, sim = null, net = null, me = null, snap = null, layoutSeen = false, lastPhase = null, input;
 const send = m => mode === 'client' ? net.send(m) : null;
 
@@ -63,7 +66,12 @@ function initHostUi() {
   try { const k = localStorage.getItem('hns-aikey'); if (k) { $('aiKey').value = k; $('aiRemember').checked = true; } } catch {}
   $('modeSel').onchange = () => sim.setMode($('modeSel').value);
   $('aiAdd').onclick = addBot;
+  $('cpuA').onclick = () => addCpu('A'); $('cpuB').onclick = () => addCpu('B');
   $('aiClear').onclick = () => { for (const id of bots.keys()) sim.removePlayer(id); bots.clear(); thoughts.clear(); $('aiErr').textContent = ''; };
+}
+function addCpu(team) { // free built-in bot, to even up or fill a team
+  if (bots.size >= 7) return;
+  const id = 'cpu-' + (++aiN); sim.addPlayer(id, '🤖 Bot ' + aiN, team); bots.set(id, new CpuBot(sim, id));
 }
 function addBot() {
   const key = $('aiKey').value.trim(), el = $('aiErr');
@@ -127,7 +135,14 @@ function startLoops() {
     requestAnimationFrame(frame);
     const dt = Math.min(0.1, (now - t0) / 1000); t0 = now;
     if (mode === 'host') snap = sim.snapshot();
-    if (snap) { ui(snap); view.update(snap, me, input, dt); }
+    if (snap) {
+      ui(snap); view.update(snap, me, input, dt);
+      const mp = snap.players.find(p => p.id === me), c = Math.cos(input.yaw), sn = Math.sin(input.yaw);
+      for (const ev of view.drainEvents()) { evCount[ev.type] = (evCount[ev.type] || 0) + 1; // spatial: quieter with distance, panned left / right
+        const dx = (ev.x ?? 0) - (mp?.x ?? 0), dz = (ev.z ?? 0) - (mp?.z ?? 0), d = mp && ev.x !== undefined ? Math.hypot(dx, dz) : 0;
+        sfx.play(ev, d, d > 0.1 ? (dx * c - dz * sn) / d : 0);
+      }
+    }
   })(t0);
 }
 
@@ -156,8 +171,14 @@ function ui(s) {
   show('blind', s.phase === 'prep' && role === 'seeker');
   $('blind').textContent = `Hiders are building a shelter… you're released in ${fmt(s.t)}s`;
   $('seenFlash').style.opacity = role === 'hider' && s.phase === 'seek' && mine && mine.sn ? 1 : 0;
+  { // what the crosshair is pointing at
+    const hv = view.hover, my = s.players.find(p => p.id === me); let ht = '';
+    if (hv && s.phase !== 'over') ht = hv.mine ? 'F lock here · E release' : hv.lockTeam ? (my && hv.lockTeam === my.tm ? '🔒 Locked by your team · F unlock' : '🔒 Locked by opponents') : 'E grab · F lock';
+    $('hoverHint').textContent = ht;
+  }
   show('cross', input.cam === 'first'); $('caption').textContent = { prep: 'Shelter Construction', seek: 'Hide and Seek', between: 'Swapping sides' }[s.phase] || ''; show('click', input.enabled && document.pointerLockElement !== $('c'));
   if (s.phase !== lastPhase) {
+    if (s.phase === 'prep') sfx.play({ type: 'chime' }); if (s.phase === 'seek') sfx.play({ type: 'go' }); if (s.phase === 'over') sfx.play({ type: 'over' });
     if (s.phase === 'prep') toast(role === 'hider' ? 'Build a shelter! Grab (E) and lock (F) objects' : 'Hold tight…', 2500);
     if (s.phase === 'seek') toast(role === 'seeker' ? 'GO! Find them!' : 'Stay hidden!', 2000);
     if (s.phase === 'between') toast('Round over — swapping sides', 2500);
@@ -179,4 +200,4 @@ $('againBtn').onclick = () => { sim.endMatch(); if (solo) sim.start(); const l =
 document.querySelectorAll('[data-team]').forEach(b => b.onclick = () => { const t = b.dataset.team; if (mode === 'host') sim.setTeam('host', t); else send({ t: 'team', team: t }); });
 $('name').value = localStorage.getItem('hns-name') || ''; $('name').oninput = () => localStorage.setItem('hns-name', $('name').value);
 const q = new URLSearchParams(location.search); if (q.get('join')) $('code').value = q.get('join');
-window.__hns = { get snap() { return snap; }, get sim() { return sim; }, input };
+window.__hns = { evCount, view, sfx, get snap() { return snap; }, get sim() { return sim; }, input };

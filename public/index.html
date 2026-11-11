@@ -31,8 +31,9 @@
   <p class="sub" id="listS"></p>
   <div id="hostOnly" class="hidden">
     <label class="field">Arena
-      <select id="modeSel"><option value="full">Full arena: divider wall, many objects</option><option value="small">Small arena: one object per round</option></select>
+      <select id="modeSel"><option value="full">Full arena: divider wall, many objects</option><option value="small">Small arena: one object per round</option><option value="random">Random arena: new rooms and objects every round</option></select>
     </label>
+    <div class="row" id="cpuRow"><button id="cpuA" class="ghost">+ Bot on Team 1</button><button id="cpuB" class="ghost">+ Bot on Team 2</button></div>
     <details id="aiBox"><summary>Add an AI player (bring your own Anthropic API key)</summary>
       <input id="aiKey" type="password" placeholder="sk-ant-..." autocomplete="off" spellcheck="false">
       <div class="row"><select id="aiModel"></select><select id="aiTeam"><option value="A">Team 1 (hides first)</option><option value="B" selected>Team 2 (seeks first)</option></select></div>
@@ -49,9 +50,9 @@
 
 <div id="hud" class="hidden">
   <div id="top"><div id="phase"></div><div id="timer"></div><div id="scores"></div></div>
-  <div id="role"></div><div id="aiPanel" class="hidden"></div><button id="exitBtn" class="ghost hidden">Exit</button><div id="cross">+</div><div id="toast"></div><div id="caption"></div><div id="seenFlash"></div>
+  <div id="role"></div><div id="aiPanel" class="hidden"></div><button id="exitBtn" class="ghost hidden">Exit</button><div id="cross">+</div><div id="hoverHint"></div><div id="toast"></div><div id="caption"></div><div id="seenFlash"></div>
   <div id="blind" class="hidden"></div>
-  <div id="hint">E grab · F lock/unlock · Space jump · V camera view</div>
+  <div id="hint">E grab · F lock/unlock · Space jump · V camera · M sound</div>
   <div id="click" class="hidden">Click to capture the mouse</div>
 </div>
 

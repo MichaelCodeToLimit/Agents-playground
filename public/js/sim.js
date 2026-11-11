@@ -1,5 +1,6 @@
 // Host-authoritative simulation: physics (cannon-es) + rules. Runs in browser (host) and Node (tests).
 import * as C from '../vendor/cannon-es.js';
+import { findPath } from './path.js';
 import { createMatch, tick, canSee, canUnlock, canLock, roleOf, forward, CFG } from './rules.js';
 
 export const ARENA = 20, SMALL_ARENA = 8, SMALL_SEQ = ['box', 'ramp', 'wall', 'box'], WALL_H = 2.6, EYE = 0.9, SPEED = 6, JUMP = 8;
@@ -7,6 +8,7 @@ export const OBJ_TYPES = {
   box:  { size: [1.2, 1.2, 1.2], mass: 3 },
   wall: { size: [3, 1.8, 0.3], mass: 4 },
   ramp: { size: [2, 1.5, 3], mass: 4 }, // wedge: high end at +z
+  plank: { size: [5, 1.2, 0.35], mass: 5 }, // long, thin gold plank (the video's shelter walls)
 };
 const G_OBS = 1, G_PLAYER = 2;
 const r2 = v => Math.round(v * 100) / 100;
@@ -31,18 +33,19 @@ export class Sim {
   constructor(seed = 1, mode = 'full') {
     this.seed = seed; this.mode = mode; this.A = mode === 'small' ? SMALL_ARENA : ARENA; this.players = new Map(); this.match = null; this.objs = []; this.statics = [];
     this.world = new C.World({ gravity: new C.Vec3(0, -25, 0) });
-    this.world.allowSleep = false;
+    this.world.allowSleep = true; this.world.solver.iterations = 14; // objects sleep when still, so stacks stay put
     const mObj = new C.Material('obj'), mPlayer = new C.Material('player');
     this.mObj = mObj; this.mPlayer = mPlayer;
     this.world.defaultContactMaterial.friction = 0.5;
     this.world.addContactMaterial(new C.ContactMaterial(mPlayer, mObj, { friction: 0, restitution: 0 }));
-    this.world.addContactMaterial(new C.ContactMaterial(mObj, mObj, { friction: 0.5, restitution: 0 }));
+    this.world.addContactMaterial(new C.ContactMaterial(mObj, mObj, { friction: 0.65, restitution: 0.02 }));
     this.events = [];
     this.buildLevel(0);
   }
 
   // ---- level -------------------------------------------------------------
   clearLevel() {
+    this.version = (this.version || 0) + 1; // lets pathfinding caches know the walls changed
     for (const o of this.objs) this.world.removeBody(o.body);
     for (const s of this.statics) this.world.removeBody(s.body);
     this.objs = []; this.statics = [];
@@ -56,6 +59,7 @@ export class Sim {
   addObj(id, type, x, y, z, yaw = 0) {
     const def = OBJ_TYPES[type];
     const body = new C.Body({ mass: def.mass, material: this.mObj, linearDamping: 0.2, angularDamping: 0.6, collisionFilterGroup: G_OBS, collisionFilterMask: G_OBS | G_PLAYER });
+    body.allowSleep = true; body.sleepSpeedLimit = 0.25; body.sleepTimeLimit = 0.5;
     body.addShape(type === 'ramp' ? wedgeShape(def.size) : new C.Box(new C.Vec3(def.size[0] / 2, def.size[1] / 2, def.size[2] / 2)));
     body.position.set(x, y, z); body.quaternion.setFromAxisAngle(new C.Vec3(0, 1, 0), yaw);
     this.world.addBody(body);
@@ -65,11 +69,13 @@ export class Sim {
   // 'small' = tiny arena with a single movable object (a different one each round); 'full' = the big arena
   setMode(mode) {
     if (this.match || mode === this.mode) return;
-    this.mode = mode; this.A = mode === 'small' ? SMALL_ARENA : ARENA; this.buildLevel(0); this.events.push('layout');
+    this.mode = mode; this.A = mode === 'small' ? SMALL_ARENA : ARENA; this.buildLevel(0); this.events.push('layout'); // 'random' picks its own size per round
   }
   buildLevel(round) {
     this.clearLevel();
-    const rand = rng(this.seed * 1000 + round), A = this.A, T = 1;
+    const rand = rng(this.seed * 1000 + round);
+    if (this.mode === 'random') this.A = 12 + Math.floor(rand() * 10); // 12..21
+    const A = this.A, T = 1;
     this.addStatic(0, -0.5, 0, A * 2 + 4, 1, A * 2 + 4);                 // floor
     this.addStatic(0, 3, -A - T / 2, A * 2 + 2, 6, T); this.addStatic(0, 3, A + T / 2, A * 2 + 2, 6, T);
     this.addStatic(-A - T / 2, 3, 0, T, 6, A * 2); this.addStatic(A + T / 2, 3, 0, T, 6, A * 2);
@@ -77,6 +83,7 @@ export class Sim {
       this.addObj(1, SMALL_SEQ[round % SMALL_SEQ.length], (rand() - 0.5) * 3, 1, (rand() - 0.5) * 2, rand() * Math.PI);
       return;
     }
+    if (this.mode === 'random') return this.buildRandom(rand, A);
     // divider at z=0 with a doorway
     const door = (rand() - 0.5) * 20, dw = 5;
     const left = door - dw / 2 + A, right = A - (door + dw / 2);
@@ -88,6 +95,43 @@ export class Sim {
     const place = (type, n, zmin, zmax) => { for (let i = 0; i < n; i++) this.addObj(id++, type, (rand() - 0.5) * 30, 2 + i * 0.01, zmin + rand() * (zmax - zmin), rand() * Math.PI); };
     place('box', 6, -16, -3); place('wall', 3, -16, -3); place('ramp', 3, -16, -3);
     place('ramp', 1, 3, 16); place('box', 2, 3, 16);
+  }
+  // Open-ended arena like the video's later stages: random rooms, doorways, loose walls and a random pile of objects.
+  buildRandom(rand, A) {
+    const int = (lo, hi) => lo + Math.floor(rand() * (hi - lo + 1)), between = (lo, hi) => lo + rand() * (hi - lo);
+    // a wall along one axis with a doorway; `ax` 'x' runs along x at z=pos, 'z' runs along z at x=pos
+    const divider = (ax, pos, from, to, doorC, doorW) => {
+      const seg = (a, b) => { if (b - a < 0.3) return; const m = (a + b) / 2, l = b - a; ax === 'x' ? this.addStatic(m, WALL_H / 2, pos, l, WALL_H, 0.6) : this.addStatic(pos, WALL_H / 2, m, 0.6, WALL_H, l); };
+      seg(from, doorC - doorW / 2); seg(doorC + doorW / 2, to);
+    };
+    const zLim = A - 7; // keep both spawn rows (the outer ~6m on z) clear
+    divider('x', between(-3, 3), -A, A, between(-A + 5, A - 5), between(4, 6.5));
+    const optional = []; // walls we may drop again if they cut the arena in two
+    for (let i = 0, n = int(0, 2); i < n; i++) {
+      const before = this.statics.length;
+      const xv = between(-A * 0.6, A * 0.6), z0 = between(-zLim, -2), z1 = between(2, zLim), dc = between(z0 + 2, z1 - 2);
+      divider('z', xv, z0, z1, dc, between(3.5, 5));
+      optional.push(...this.statics.slice(before));
+    }
+    for (let i = 0, n = int(2, 5); i < n; i++) { // loose wall segments
+      const len = between(2, 5), alongX = rand() < 0.5, x = between(-A + 4, A - 4), z = between(-zLim, zLim);
+      alongX ? this.addStatic(x, WALL_H / 2, z, len, WALL_H, 0.6) : this.addStatic(x, WALL_H / 2, z, 0.6, WALL_H, len);
+      optional.unshift(this.statics[this.statics.length - 1]); // loose walls are dropped first
+    }
+    // both spawn areas must stay connected: drop optional walls (loose ones first) until a route exists
+    const connected = () => { this.version++; return !!findPath(this, { x: 0, z: -(A - 3) }, { x: 0, z: A - 3 }); };
+    while (!connected() && optional.length) { const st = optional.shift(); this.world.removeBody(st.body); this.statics.splice(this.statics.indexOf(st), 1); }
+    const free = (x, z) => this.statics.every(st => st.y < 0 || st.sy > 5 || Math.abs(x - st.x) > st.sx / 2 + 1.6 || Math.abs(z - st.z) > st.sz / 2 + 1.6);
+    let id = 1;
+    const place = (type, n, zmin, zmax) => {
+      for (let i = 0; i < n; i++) for (let t = 0; t < 30; t++) {
+        const x = between(-A + 2.5, A - 2.5), z = between(zmin, zmax);
+        if (free(x, z) || t === 29) { this.addObj(id++, type, x, 1.5 + i * 0.01, z, rand() * Math.PI); break; }
+      }
+    };
+    const own = [-A + 2.5, -1.5], far = [1.5, A - 2.5];
+    place('box', int(3, 6), ...own); place('plank', int(2, 4), ...own); place('ramp', int(1, 3), ...own); place('wall', int(0, 2), ...own);
+    place('box', int(1, 2), ...far); place('ramp', int(0, 1), ...far); place('plank', int(0, 1), ...far);
   }
   layout() {
     return { arena: this.A, mode: this.mode, statics: this.statics.map(({ x, y, z, sx, sy, sz }) => ({ x, y, z, sx, sy, sz })),
@@ -102,7 +146,7 @@ export class Sim {
   }
   makeBody(p) {
     if (p.body) return;
-    const body = new C.Body({ mass: 4, material: this.mPlayer, fixedRotation: true, linearDamping: 0.05, collisionFilterGroup: G_PLAYER, collisionFilterMask: G_OBS | G_PLAYER });
+    const body = new C.Body({ mass: 4, material: this.mPlayer, fixedRotation: true, allowSleep: false, linearDamping: 0.05, collisionFilterGroup: G_PLAYER, collisionFilterMask: G_OBS | G_PLAYER });
     body.addShape(new C.Sphere(0.5)); body.position.set(0, 0.6, 0);
     this.world.addBody(body); p.body = body;
   }
@@ -211,8 +255,9 @@ export class Sim {
       const frozen = !live || (m.phase === 'prep' && role === 'seeker');
       const i = p.input, f = forward(i.yaw, 0), rx = Math.cos(i.yaw), rz = -Math.sin(i.yaw);
       const g = this.grounded(p), gv = g ? g.velocity : { x: 0, z: 0 };
+      const carry = p.held ? Math.max(0.55, 1 - 0.07 * p.held.mass) : 1; // heavier things slow you down
       let tx = 0, tz = 0;
-      if (!frozen) { const len = Math.hypot(i.mx, i.mz) || 1, k = Math.min(1, Math.hypot(i.mx, i.mz)); tx = (f.x * i.mz + rx * i.mx) / len * SPEED * k; tz = (f.z * i.mz + rz * i.mx) / len * SPEED * k; }
+      if (!frozen) { const len = Math.hypot(i.mx, i.mz) || 1, k = Math.min(1, Math.hypot(i.mx, i.mz)); tx = (f.x * i.mz + rx * i.mx) / len * SPEED * k * carry; tz = (f.z * i.mz + rz * i.mx) / len * SPEED * k * carry; }
       const a = g ? 0.35 : 0.08, v = p.body.velocity;
       v.x += (tx + gv.x - v.x) * a; v.z += (tz + gv.z - v.z) * a;
       if (!frozen && i.jump && g) v.y = JUMP + (g.velocity.y > 0 ? g.velocity.y : 0);
@@ -221,7 +266,7 @@ export class Sim {
         const tgt = new C.Vec3(e.x + hf.x * p.holdDist, Math.max(0.7, e.y + hf.y * p.holdDist), e.z + hf.z * p.holdDist);
         const d = tgt.vsub(o.body.position);
         if (d.length() > 7 || frozen) this.release(p);
-        else { d.scale(12, o.body.velocity); const s = o.body.velocity.length(); if (s > 16) o.body.velocity.scale(16 / s, o.body.velocity); o.body.angularVelocity.setZero(); }
+        else { o.body.wakeUp(); d.scale(10, o.body.velocity); const s = o.body.velocity.length(); if (s > 13) o.body.velocity.scale(13 / s, o.body.velocity); o.body.angularVelocity.setZero(); }
       }
     }
     this.world.step(1 / 60, dt, 4);

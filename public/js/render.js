@@ -26,6 +26,21 @@ function blobTex() {
   g.addColorStop(0, 'rgba(30,30,50,.55)'); g.addColorStop(1, 'rgba(30,30,50,0)'); x.fillStyle = g; x.fillRect(0, 0, 64, 64);
   return (blobTex.t = new THREE.CanvasTexture(c));
 }
+function lockTex(hex) {
+  lockTex.c = lockTex.c || {}; if (lockTex.c[hex]) return lockTex.c[hex];
+  const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d'), col = '#' + hex.toString(16).padStart(6, '0');
+  x.fillStyle = 'rgba(255,255,255,.92)'; x.beginPath(); x.arc(64, 64, 58, 0, 7); x.fill();           // white badge
+  x.strokeStyle = '#33305f'; x.lineWidth = 10; x.lineCap = 'round'; x.beginPath(); x.arc(64, 52, 18, Math.PI, 0); x.moveTo(46, 52); x.lineTo(46, 62); x.moveTo(82, 52); x.lineTo(82, 62); x.stroke(); // shackle
+  x.fillStyle = col; x.strokeStyle = '#33305f'; x.lineWidth = 6; x.beginPath(); x.roundRect(34, 60, 60, 44, 9); x.fill(); x.stroke();
+  x.fillStyle = '#33305f'; x.beginPath(); x.arc(64, 78, 7, 0, 7); x.fill(); x.fillRect(61, 80, 6, 14);                                      // keyhole
+  return (lockTex.c[hex] = new THREE.CanvasTexture(c));
+}
+function puffTex() {
+  if (puffTex.t) return puffTex.t;
+  const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 2, 32, 32, 30);
+  g.addColorStop(0, 'rgba(255,255,255,.9)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 64, 64);
+  return (puffTex.t = new THREE.CanvasTexture(c));
+}
 function floorTex(n) {
   const c = document.createElement('canvas'); c.width = c.height = 256; const x = c.getContext('2d');
   const g = x.createLinearGradient(0, 0, 256, 256); g.addColorStop(0, '#f1f2f5'); g.addColorStop(1, '#e4e6ea');
@@ -43,7 +58,7 @@ function skyTex() {
 
 // Round-headed little character like the video's agents. Origin = physics sphere centre (0.5 above the ground).
 function makeAgent(name) {
-  const g = new THREE.Group(), skin = new THREE.MeshStandardMaterial({ color: BLUE, roughness: 0.4, emissive: BLUE, emissiveIntensity: 0.22 });
+  const g = new THREE.Group(), rig = new THREE.Group(), skin = new THREE.MeshStandardMaterial({ color: BLUE, roughness: 0.4, emissive: BLUE, emissiveIntensity: 0.22 });
   const glow = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, fog: false, toneMapped: false });
   const mesh = (geo, m = skin) => { const o = new THREE.Mesh(geo, m); o.castShadow = m === skin; return o; };
   const torso = mesh(new THREE.CapsuleGeometry(0.15, 0.2, 4, 12)); torso.position.y = -0.02; torso.scale.set(1.1, 1, 0.85);
@@ -57,17 +72,17 @@ function makeAgent(name) {
     const pivot = new THREE.Group(); pivot.position.set(x, y, 0); pivot.rotation.z = tilt;
     const m = mesh(new THREE.CapsuleGeometry(r, len, 4, 8)); m.position.y = -len / 2 - r * 0.5; pivot.add(m);
     const end = mesh(new THREE.SphereGeometry(r * 1.45, 10, 8)); end.position.y = -len - r; pivot.add(end);
-    g.add(pivot); return pivot;
+    rig.add(pivot); return pivot;
   };
   const legs = [limb(-0.09, -0.2, 0.16, 0.06, 0), limb(0.09, -0.2, 0.16, 0.06, 0)];
   const arms = [limb(-0.2, 0.14, 0.2, 0.05, -0.55), limb(0.2, 0.14, 0.2, 0.05, 0.55)];
   const emblem = mesh(new THREE.TorusKnotGeometry(0.05, 0.011, 64, 8, 3, 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.75, toneMapped: false }));
-  emblem.position.set(0, 0.04, -0.15); emblem.rotation.x = Math.PI / 2; g.add(emblem); // little chest badge like the video's agents
+  emblem.position.set(0, 0.04, -0.15); emblem.rotation.x = Math.PI / 2; rig.add(emblem); // little chest badge like the video's agents
   const blob = new THREE.Mesh(new THREE.CircleGeometry(0.62, 24), new THREE.MeshBasicMaterial({ map: blobTex(), transparent: true, depthWrite: false, toneMapped: false }));
   blob.rotation.x = -Math.PI / 2; blob.position.y = -0.47; g.add(blob); // soft contact shadow
   const t = tag(name); t.position.y = 1.35;
-  g.add(torso, head, t);
-  return { g, skin, grin, legs, arms, head, tag: t, tp: new THREE.Vector3(), init: false, walk: 0 };
+  rig.add(torso, head); g.add(rig, t);
+  return { g, rig, skin, grin, legs, arms, head, tag: t, tp: new THREE.Vector3(), init: false, walk: 0, prev: null, vx: 0, vy: 0, vz: 0, hsp: 0, stepT: 0, squash: 0, h: 0, sn: 0, armX: 0, legX: 0, armZ: 0.55, beam: null };
 }
 
 export class View {
@@ -83,6 +98,7 @@ export class View {
     this.buildSky(); this.env = new THREE.Group(); this.scene.add(this.env); this.A = 0;
     this.world = new THREE.Group(); this.scene.add(this.world);
     this.objs = new Map(); this.players = new Map(); this.orbit = 0.6;
+    this.events = []; this.puffs = []; this.shake = 0; this.hover = null; this.ray = new THREE.Raycaster(); this.lastSnap = null; this.lastT = performance.now(); this.t = 0;
     addEventListener('resize', () => this.resize()); this.resize();
   }
   buildSky() {
@@ -112,9 +128,17 @@ export class View {
     rub.castShadow = false; rub.receiveShadow = true; rub.frustumCulled = false; this.env.add(rub); // far border: no shadow casting (cheap)
   }
   resize() { this.r.setSize(innerWidth, innerHeight, false); this.cam.aspect = innerWidth / innerHeight; this.cam.updateProjectionMatrix(); }
+  drainEvents() { const e = this.events; this.events = []; return e; }
+  puff(x, y, z, n = 6, power = 1) { // little dust cloud
+    for (let i = 0; i < n && this.puffs.length < 80; i++) {
+      const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: puffTex(), color: 0xe9e9ef, transparent: true, depthWrite: false, toneMapped: false, opacity: 0.55 }));
+      const a = Math.random() * 6.28, sp = (0.6 + Math.random()) * power; m.position.set(x + Math.cos(a) * 0.2, y + 0.08, z + Math.sin(a) * 0.2);
+      this.scene.add(m); this.puffs.push({ m, vx: Math.cos(a) * sp, vy: 0.5 + Math.random() * power * 0.6, vz: Math.sin(a) * sp, t: 0, life: 0.5 + Math.random() * 0.3, s0: 0.25 + power * 0.12 });
+    }
+  }
   setLayout(layout) {
     if (layout.arena !== this.A) this.buildArena(layout.arena);
-    this.world.clear(); this.objs.clear();
+    this.world.clear(); this.objs.clear(); this.hover = null; this.quiet = 2.5; // objects drop in at round start: no impact sounds meanwhile
     for (const s of layout.statics) {
       if (s.y < 0 || s.sy > 5) continue; // floor and invisible boundary are drawn by the environment
       const m = new THREE.Mesh(new THREE.BoxGeometry(s.sx, s.sy, s.sz), new THREE.MeshStandardMaterial({ color: WALL, roughness: 0.7 }));
@@ -123,24 +147,36 @@ export class View {
     for (const o of layout.objs) {
       const geo = o.type === 'ramp' ? wedgeGeo(o.size) : new THREE.BoxGeometry(...o.size);
       const mat = new THREE.MeshStandardMaterial({ color: GOLD, roughness: 0.5, flatShading: o.type === 'ramp', side: THREE.DoubleSide });
-      const m = new THREE.Mesh(geo, mat); m.castShadow = m.receiveShadow = true; this.world.add(m);
-      this.objs.set(o.id, { m, tp: new THREE.Vector3(), tq: new THREE.Quaternion(), init: false });
+      const m = new THREE.Mesh(geo, mat); m.castShadow = m.receiveShadow = true; m.userData.id = o.id; this.world.add(m);
+      const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: lockTex(LOCK_BLUE), transparent: true, toneMapped: false })); spr.scale.set(0.75, 0.75, 1); spr.visible = false; this.world.add(spr);
+      this.objs.set(o.id, { m, spr, top: o.size[1] / 2, tp: new THREE.Vector3(), tq: new THREE.Quaternion(), init: false, prev: null, vel: 0, lock: 0 });
     }
   }
   // snap: latest snapshot; me: my id; look: {yaw, pitch, cam: 'chase' | 'top' | 'first'}
   update(snap, me, look, dt) {
-    const k = damp(dt, 22), hid = snap.hiderTeam || 'A';
+    const k = damp(dt, 22), hid = snap.hiderTeam || 'A', now = performance.now(); this.t += dt;
+    this.quiet = Math.max(0, (this.quiet || 0) - dt);
+    const fresh = snap !== this.lastSnap, sdt = Math.max(0.016, (now - this.lastT) / 1000); if (fresh) { this.lastSnap = snap; this.lastT = now; }
     const teamHex = n => ((n === 1 ? 'A' : 'B') === hid ? LOCK_BLUE : LOCK_RED);
-    const held = new Set(snap.players.map(p => p.h).filter(Boolean));
+    const holders = new Map(snap.players.filter(p => p.h).map(p => [p.h, p.id]));
+    const mineP = snap.players.find(p => p.id === me), myTeam = mineP && mineP.tm, iSeek = mineP && mineP.x !== undefined && myTeam !== hid;
+    const hovered = this.hover && this.hover.id;
     for (const a of snap.objs) {
       const o = this.objs.get(a[0]); if (!o) continue;
       o.tp.set(a[1], a[2], a[3]); o.tq.set(a[4], a[5], a[6], a[7]);
-      if (!o.init) { o.m.position.copy(o.tp); o.m.quaternion.copy(o.tq); o.init = true; }
+      if (!o.init) { o.m.position.copy(o.tp); o.m.quaternion.copy(o.tq); o.init = true; o.lock = a[8]; }
+      if (fresh) { // impact + lock events from snapshot differences
+        const v = o.prev ? Math.hypot(a[1] - o.prev[0], a[2] - o.prev[1], a[3] - o.prev[2]) / sdt : 0;
+        if (!this.quiet && o.vel > 3 && v < o.vel * 0.35 && !holders.has(a[0]) && !a[8]) { this.events.push({ type: 'impact', x: a[1], y: a[2], z: a[3], v: o.vel }); if (o.vel > 4.5) this.puff(a[1], a[2] - o.top, a[3], 5, Math.min(1.6, o.vel / 6)); }
+        o.vel = o.vel * 0.4 + v * 0.6; o.prev = [a[1], a[2], a[3]];
+        if (a[8] !== o.lock) { this.events.push({ type: a[8] ? 'lock' : 'unlock', x: a[1], y: a[2], z: a[3] }); o.lock = a[8]; }
+      }
       o.m.position.lerp(o.tp, k); o.m.quaternion.slerp(o.tq, k);
-      o.m.material.color.setHex(a[8] ? teamHex(a[8]) : GOLD);
-      o.m.material.emissive.setHex(held.has(a[0]) ? 0x554000 : 0);
+      const mat = o.m.material; mat.color.setHex(a[8] ? teamHex(a[8]) : GOLD);
+      mat.emissive.setHex(holders.has(a[0]) ? 0x6a4c00 : a[0] === hovered ? (a[8] ? 0x2a3a48 : 0x4a3500) : 0);
+      o.spr.visible = !!a[8];
+      if (a[8]) { o.spr.material.map = lockTex(teamHex(a[8])); o.spr.position.set(o.m.position.x, o.m.position.y + o.top + 0.65 + Math.sin(this.t * 2.6 + a[0]) * 0.05, o.m.position.z); }
     }
-    const mineP = snap.players.find(p => p.id === me), myTeam = mineP && mineP.tm, iSeek = mineP && mineP.x !== undefined && myTeam !== hid;
     const live = snap.phase === 'prep' || snap.phase === 'seek';
     const seen = new Set(); let mine = null;
     for (const p of snap.players) {
@@ -151,18 +187,46 @@ export class View {
       const hider = p.tm === hid;
       e.skin.color.setHex(hider ? BLUE : RED); e.skin.emissive.setHex(hider ? BLUE : RED); e.grin.visible = !hider;
       e.tp.set(p.x, p.y, p.z); if (!e.init) { e.g.position.copy(e.tp); e.init = true; }
-      const before = e.g.position.clone(); e.g.position.lerp(e.tp, k);
-      const sp = Math.hypot(e.g.position.x - before.x, e.g.position.z - before.z) / Math.max(dt, 1e-3);
-      e.walk += sp * dt * 3.2; const sw = Math.sin(e.walk) * Math.min(1, sp / 3) * 0.8;
-      e.legs[0].rotation.x = sw; e.legs[1].rotation.x = -sw; e.arms[0].rotation.x = -sw; e.arms[1].rotation.x = sw;
+      if (fresh) { // velocity from snapshot differences -> footsteps, jump / landing, grab events
+        if (e.prev) {
+          const pvy = e.vy, vx = (p.x - e.prev.x) / sdt, vz = (p.z - e.prev.z) / sdt, vy = (p.y - e.prev.y) / sdt;
+          e.vx = e.vx * 0.5 + vx * 0.5; e.vz = e.vz * 0.5 + vz * 0.5; e.vy = e.vy * 0.4 + vy * 0.6; e.hsp = Math.hypot(e.vx, e.vz);
+          const at = { x: p.x, y: p.y, z: p.z, who: p.id };
+          if (pvy < -4 && e.vy > -1.5) { e.squash = Math.min(1, -pvy / 10); this.events.push({ type: 'land', v: -pvy, ...at }); this.puff(p.x, p.y - 0.5, p.z, 6, Math.min(1.4, -pvy / 8)); if (p.id === me) this.shake = Math.min(0.3, -pvy * 0.03); }
+          if (pvy < 2.5 && e.vy > 4.5) this.events.push({ type: 'jump', ...at });
+          e.stepT -= sdt; if (Math.abs(e.vy) < 1.3 && e.hsp > 1.5 && e.stepT <= 0) { this.events.push({ type: 'step', v: Math.min(1, e.hsp / 5), ...at }); e.stepT = 0.46 - Math.min(0.16, e.hsp * 0.025); }
+          if ((p.h || 0) !== e.h) { this.events.push({ type: p.h ? 'grab' : 'release', ...at }); e.h = p.h || 0; }
+          if (p.id === me && p.sn && !e.sn && hider) this.events.push({ type: 'seen', ...at });
+          e.sn = p.sn || 0;
+        }
+        e.prev = { x: p.x, y: p.y, z: p.z };
+      }
+      e.g.position.lerp(e.tp, k);
+      // pose: running swing, run lean, jump tuck, landing squash, arms forward while carrying
+      const sp = e.hsp, air = Math.abs(e.vy) > 2.4 ? Math.sign(e.vy) : 0;
+      e.walk += sp * dt * 3.1; const sw = Math.sin(e.walk) * Math.min(1, sp / 3) * 0.85;
+      const legT = air ? (air > 0 ? -0.8 : 0.5) : sw, armT = p.h ? -1.45 : air ? -0.3 : -sw, armZT = p.h ? 0.18 : air ? 1.3 : 0.55;
+      const lk = damp(dt, 18); e.legX += (legT - e.legX) * lk; e.armX += (armT - e.armX) * lk; e.armZ += (armZT - e.armZ) * lk;
+      e.legs[0].rotation.x = e.legX; e.legs[1].rotation.x = air ? e.legX : -e.legX;
+      e.arms[0].rotation.x = e.armX; e.arms[1].rotation.x = p.h ? e.armX : -e.armX; e.arms[0].rotation.z = -e.armZ; e.arms[1].rotation.z = e.armZ;
+      e.squash = Math.max(0, e.squash - dt * 5); e.rig.scale.set(1 + 0.14 * e.squash, 1 - 0.2 * e.squash, 1 + 0.14 * e.squash);
+      e.rig.rotation.x += (-Math.min(0.2, sp * 0.03) - e.rig.rotation.x) * lk; e.head.position.y = 0.55 + Math.sin(e.walk * 2) * 0.015 * Math.min(1, sp / 3);
       e.g.rotation.y = p.yw; e.head.rotation.x = p.pt * 0.5;
+      // grab beam from the carrier's hands to the object it holds
+      const ho = p.h && this.objs.get(p.h);
+      if (ho) {
+        if (!e.beam) { e.beam = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1, 6), new THREE.MeshBasicMaterial({ color: 0xfff1b0, transparent: true, opacity: 0.7, toneMapped: false, depthWrite: false })); this.scene.add(e.beam); }
+        const a0 = new THREE.Vector3(e.g.position.x - Math.sin(p.yw) * 0.35, e.g.position.y + 0.12, e.g.position.z - Math.cos(p.yw) * 0.35), d = ho.m.position.clone().sub(a0), len = d.length();
+        e.beam.visible = true; e.beam.position.copy(a0).addScaledVector(d, 0.5); e.beam.scale.set(1 + Math.sin(this.t * 14) * 0.25, len, 1 + Math.sin(this.t * 14) * 0.25); e.beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
+      } else if (e.beam) e.beam.visible = false;
       // From the elevated camera a seeker only gets to see a hider that some seeker's eyes can actually see.
       const concealed = look.cam !== 'first' && iSeek && hider && live && !p.sn;
       e.g.visible = !(p.id === me && look.cam === 'first') && !concealed;
+      if (e.beam && concealed) e.beam.visible = false;
       e.tag.visible = p.tm === myTeam && p.id !== me;
       if (p.id === me) mine = e;
     }
-    for (const [id, e] of this.players) if (!seen.has(id)) { this.scene.remove(e.g); this.players.delete(id); }
+    for (const [id, e] of this.players) if (!seen.has(id)) { this.scene.remove(e.g); if (e.beam) this.scene.remove(e.beam); this.players.delete(id); }
     if (mine && look.cam === 'top') { // overhead view like the video's "Shelter Construction" shot
       const P = mine.g.position, c = v => Math.max(-this.A - 2, Math.min(this.A + 2, v));
       this.cam.position.set(c(P.x), P.y + this.A * 0.7 + 4, c(P.z) + this.A * 0.42 + 2.5); this.cam.lookAt(c(P.x) * 0.9, 0, c(P.z) * 0.9);
@@ -176,6 +240,21 @@ export class View {
     } else { // lobby / spectator: slow overhead orbit
       this.orbit += dt * 0.08;
       const od = Math.max(14, this.A * 1.35); this.cam.position.set(Math.cos(this.orbit) * od, od, Math.sin(this.orbit) * od); this.cam.lookAt(0, 0, 0);
+    }
+    if (mine) { // aim: what would grab / lock act on?
+      const o = this.cam.position.clone(); if (look.cam !== 'first') o.set(mine.g.position.x, mine.g.position.y + 0.4, mine.g.position.z);
+      const d = new THREE.Vector3(-Math.sin(look.yaw) * Math.cos(look.pitch), Math.sin(look.pitch), -Math.cos(look.yaw) * Math.cos(look.pitch));
+      this.ray.set(o, d); this.ray.far = 4.5; const hit = this.ray.intersectObjects(this.world.children.filter(c => c.isMesh), false)[0];
+      const id = hit && hit.object.userData.id, a = id && snap.objs.find(q => q[0] === id);
+      this.hover = a ? { id, lockTeam: a[8] ? (a[8] === 1 ? 'A' : 'B') : null, mine: !!(mineP && mineP.h === id) } : null;
+    } else this.hover = null;
+    const fovT = 60 + (mine ? Math.min(7, mine.hsp * 1.1) : 0); this.cam.fov += (fovT - this.cam.fov) * Math.min(1, dt * 6); this.cam.updateProjectionMatrix();
+    if (this.shake > 0.002) { this.cam.position.x += (Math.random() - 0.5) * this.shake; this.cam.position.y += (Math.random() - 0.5) * this.shake; this.shake *= Math.exp(-dt * 9); }
+    for (let i = this.puffs.length - 1; i >= 0; i--) {
+      const q = this.puffs[i]; q.t += dt; const f = q.t / q.life;
+      if (f >= 1) { this.scene.remove(q.m); q.m.material.dispose(); this.puffs.splice(i, 1); continue; }
+      q.m.position.x += q.vx * dt; q.m.position.y += q.vy * dt; q.m.position.z += q.vz * dt; q.vx *= 0.94; q.vz *= 0.94; q.vy *= 0.95;
+      q.m.scale.setScalar(q.s0 * (1 + f * 3)); q.m.material.opacity = 0.5 * (1 - f);
     }
     this.r.render(this.scene, this.cam);
   }

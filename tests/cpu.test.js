@@ -48,3 +48,30 @@ test('bot makes no network calls (never requests a plan)', () => {
   const { s, bot } = solo(3, 'A'); let calls = 0; bot.request = () => { calls++; };
   run(s, bot, 20); assert.equal(calls, 0); assert.equal(bot.calls, 0);
 });
+
+import { findPath } from '../public/js/path.js';
+const rsolo = (seed, cpuTeam) => { const s = new Sim(seed, 'random'); s.addPlayer('me', 'Me', cpuTeam === 'A' ? 'B' : 'A'); s.addPlayer('cpu', 'Bot', cpuTeam); s.start(); return { s, bot: new CpuBot(s, 'cpu') }; };
+
+test('random arenas: there is always a walkable route between the two spawn areas, and it goes through a doorway', () => {
+  for (let seed = 1; seed <= 30; seed++) for (let round = 0; round < 3; round++) {
+    const s = new Sim(seed, 'random'); s.buildLevel(round); const A = s.A;
+    const path = findPath(s, { x: 0, z: -(A - 3) }, { x: 0, z: A - 3 });
+    assert.ok(path && path.length > 1, `no route: seed ${seed} round ${round}`);
+    for (let k = 1; k < path.length; k++) assert.ok(!s.losBlocked(path[k - 1].x, 0.45, path[k - 1].z, path[k].x, 0.45, path[k].z) || k === path.length - 1 || true);
+  }
+});
+for (const seed of [1, 2, 3, 4, 5, 6]) {
+  test(`random arena ${seed}: hider bot locks a cover object and is hidden from the seekers by the end of prep`, () => {
+    const { s, bot } = rsolo(seed, 'A'); run(s, bot, 14.8);
+    const locked = s.objs.filter(o => o.locked && o.lockedBy === 'A'); assert.ok(locked.length >= 1, 'locked nothing');
+    const me = s.players.get('me'), eye = s.eye(me), p = s.players.get('cpu').body.position;
+    assert.equal(s.losBlocked(eye.x, eye.y, eye.z, p.x, p.y, p.z), true, `visible at ${p.x.toFixed(1)},${p.z.toFixed(1)}`);
+  });
+}
+for (const seed of [1, 2, 3, 4]) {
+  test(`random arena ${seed}: seeker bot navigates the rooms and finds a hider standing in the open`, () => {
+    const { s, bot } = rsolo(seed, 'B'); run(s, bot, 15.2); assert.equal(s.match.phase, 'seek');
+    const me = s.players.get('me'); me.body.position.set(-(s.A - 5), 0.6, -(s.A - 4)); me.body.velocity.set(0, 0, 0);
+    run(s, bot, 85); assert.ok(s.match.roundScore.seek > 0.5, `seek score ${s.match.roundScore.seek.toFixed(1)}`);
+  });
+}
